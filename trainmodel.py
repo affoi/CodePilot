@@ -1,6 +1,13 @@
+# =========================================
+# TRAINING CODE (DEPLOYMENT READY)
+# Uses joblib.dump() for GCP Deployment
+# Final deployed model = Random Forest
+# =========================================
+
 import pandas as pd
 import numpy as np
 import re
+import joblib
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -32,7 +39,7 @@ df = df[df["label"] != ""]
 
 
 # =========================================
-# HELPERS
+# HELPER FUNCTIONS
 # =========================================
 
 def max_loop_depth(code):
@@ -57,7 +64,6 @@ def max_loop_depth(code):
 def get_function_name_and_calls(code):
     code = str(code)
 
-    # Better Java function detection
     match = re.search(
         r'(?:public|private|protected)?\s*'
         r'(?:static\s+)?'
@@ -119,10 +125,7 @@ vectorizer = TfidfVectorizer(
 
 X_text = vectorizer.fit_transform(df["code"])
 
-X = np.hstack((
-    X_struct,
-    X_text.toarray()
-))
+X = np.hstack((X_struct, X_text.toarray()))
 
 encoder = LabelEncoder()
 y = encoder.fit_transform(df["label"])
@@ -145,18 +148,14 @@ X_train, X_test, y_train, y_test = train_test_split(
 # MODELS
 # =========================================
 
-lr = LogisticRegression(
-    max_iter=1000
-)
+lr = LogisticRegression(max_iter=1000)
 
 rf = RandomForestClassifier(
     random_state=42,
     class_weight="balanced"
 )
 
-xgb = XGBClassifier(
-    eval_metric="mlogloss"
-)
+xgb = XGBClassifier(eval_metric="mlogloss")
 
 
 # =========================================
@@ -174,7 +173,7 @@ xgb.fit(X_train, y_train)
 
 
 # =========================================
-# EVALUATION FUNCTION
+# EVALUATION
 # =========================================
 
 accuracy_results = []
@@ -199,57 +198,45 @@ def evaluate(name, model):
     return pred, true
 
 
-# =========================================
-# RUN EVALUATION
-# =========================================
-
-lr_pred, true_labels = evaluate(
-    "Logistic Regression",
-    lr
-)
-
-rf_pred, _ = evaluate(
-    "Random Forest",
-    rf
-)
-
-xgb_pred, _ = evaluate(
-    "XGBoost",
-    xgb
-)
+lr_pred, true_labels = evaluate("Logistic Regression", lr)
+rf_pred, _ = evaluate("Random Forest", rf)
+xgb_pred, _ = evaluate("XGBoost", xgb)
 
 
 # =========================================
-# ACCURACY COMPARISON TABLE
+# ACCURACY TABLE
 # =========================================
-
-print("\n===================================")
-print("ACCURACY COMPARISON TABLE")
-print("===================================")
 
 accuracy_df = pd.DataFrame(accuracy_results)
 
+print("\n===== ACCURACY COMPARISON TABLE =====")
 print(accuracy_df)
 
-# Optional: Save to CSV for report use
 accuracy_df.to_csv(
     "model_accuracy_comparison.csv",
     index=False
 )
 
-print("\nSaved as: model_accuracy_comparison.csv")
+
+# =========================================
+# SAVE DEPLOYMENT FILES
+# =========================================
+
+joblib.dump(rf, "saved_model.pkl")
+joblib.dump(vectorizer, "vectorizer.pkl")
+joblib.dump(encoder, "encoder.pkl")
+
+print("\nSaved:")
+print("saved_model.pkl")
+print("vectorizer.pkl")
+print("encoder.pkl")
 
 
 # =========================================
-# CONFUSION MATRIX (Random Forest)
+# CONFUSION MATRIX
 # =========================================
 
-print("\nShowing Random Forest Confusion Matrix...")
-
-cm = confusion_matrix(
-    true_labels,
-    rf_pred
-)
+cm = confusion_matrix(true_labels, rf_pred)
 
 plt.figure(figsize=(8, 6))
 

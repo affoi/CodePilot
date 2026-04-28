@@ -1,24 +1,15 @@
 # =========================================
-# READY TO RUN FRONTEND CODE (UPDATED)
-# Includes:
-# ✅ Better recursion detection
-# ✅ Fibonacci → O(2^n)
-# ✅ Improved TLE prediction
-# ✅ number_input() instead of text_input()
-# ✅ No more "Invalid" issue
+# FRONTEND CODE (app.py)
+# DEPLOYMENT READY FOR GCP
+# Uses joblib.load() instead of retraining
 # =========================================
 
 import streamlit as st
-import pandas as pd
 import numpy as np
 import re
 import json
 import os
-
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.preprocessing import LabelEncoder
+import joblib
 
 
 # =========================================
@@ -48,7 +39,9 @@ def get_function_name_and_calls(code):
     code = str(code)
 
     match = re.search(
-        r'(?:public|private|protected)?\s*(?:static\s+)?(?:int|void|double|float|String|boolean)\s+(\w+)\s*\(',
+        r'(?:public|private|protected)?\s*(?:static\s+)?'
+        r'(?:int|void|double|float|String|boolean)\s+'
+        r'(\w+)\s*\(',
         code
     )
 
@@ -122,39 +115,35 @@ def rule_based_prediction(code):
 
 
 # =========================================
-# IMPROVED TLE PREDICTION
+# TLE PREDICTION
 # =========================================
 
 def tle_prediction(complexity, n):
-
-    if not str(n).strip():
-        return "NOT PROVIDED", "Please enter input constraint n"
-
-    try:
-        n = int(n)
-    except:
-        return "INVALID INPUT", "Enter only numeric value like 100000"
+    n = int(n)
 
     if complexity in ["O(1)", "O(log n)"]:
         return "LOW", "Very safe"
 
     if complexity == "O(n)":
-        if n <= 10**7:
-            return "LOW", "Usually acceptable"
-        else:
-            return "MEDIUM", "Large input size"
+        return (
+            ("LOW", "Usually acceptable")
+            if n <= 10**7 else
+            ("MEDIUM", "Large input size")
+        )
 
     if complexity == "O(n log n)":
-        if n <= 10**6:
-            return "LOW", "Efficient"
-        else:
-            return "MEDIUM", "May be heavy"
+        return (
+            ("LOW", "Efficient")
+            if n <= 10**6 else
+            ("MEDIUM", "May be heavy")
+        )
 
     if complexity == "O(n^2)":
-        if n <= 10**4:
-            return "MEDIUM", "Borderline case"
-        else:
-            return "HIGH", "Likely TLE"
+        return (
+            ("MEDIUM", "Borderline case")
+            if n <= 10**4 else
+            ("HIGH", "Likely TLE")
+        )
 
     if complexity in ["O(n^3)", "O(2^n)"]:
         return "HIGH", "Very likely TLE"
@@ -163,7 +152,7 @@ def tle_prediction(complexity, n):
 
 
 # =========================================
-# OPTIMIZATION SUGGESTIONS
+# SUGGESTIONS
 # =========================================
 
 def optimization_suggestions(complexity):
@@ -215,63 +204,32 @@ def personalized_feedback(data):
     common = max(data, key=data.get)
 
     if common in ["O(n^2)", "O(n^3)"]:
-        return "You often use brute-force solutions. Try optimized approaches like hashing or binary search."
+        return "You often use brute-force solutions. Try optimized approaches."
 
     return "Good complexity patterns overall."
 
 
 # =========================================
-# TRAIN MODEL
+# LOAD SAVED MODEL (FAST STARTUP)
 # =========================================
 
-@st.cache_resource
-def train_model():
-    df = pd.read_csv("final_cleaned_dataset.csv")
-
-    df = df.dropna(subset=["label"])
-
-    encoder = LabelEncoder()
-    y = encoder.fit_transform(df["label"])
-
-    df["features"] = df["code"].apply(extract_features)
-    X_struct = np.array(list(df["features"]))
-
-    vectorizer = TfidfVectorizer(max_features=1000)
-    X_text = vectorizer.fit_transform(df["code"])
-
-    X = np.hstack((X_struct, X_text.toarray()))
-
-    X_train, _, y_train, _ = train_test_split(
-        X,
-        y,
-        test_size=0.2,
-        random_state=42
-    )
-
-    model = RandomForestClassifier(
-        random_state=42
-    )
-
-    model.fit(X_train, y_train)
-
-    return model, vectorizer, encoder
-
-
-model, vectorizer, encoder = train_model()
+model = joblib.load("saved_model.pkl")
+vectorizer = joblib.load("vectorizer.pkl")
+encoder = joblib.load("encoder.pkl")
 
 
 # =========================================
 # UI
 # =========================================
 
-st.title("Personalized Coding Assistant")
+st.title("CodePilot - Personalized Coding Assistant")
+st.write("Final Model Used: Random Forest Classifier")
 
 code = st.text_area(
     "Paste your code",
     height=300
 )
 
-# CHANGED HERE ↓↓↓
 constraint = st.number_input(
     "Enter constraint n",
     min_value=1,
@@ -311,17 +269,10 @@ if st.button("Analyze"):
         constraint
     )
 
-    suggestions = optimization_suggestions(
-        final_pred
-    )
+    suggestions = optimization_suggestions(final_pred)
 
-    behavior = update_behavior(
-        final_pred
-    )
-
-    feedback = personalized_feedback(
-        behavior
-    )
+    behavior = update_behavior(final_pred)
+    feedback = personalized_feedback(behavior)
 
     st.success(f"Complexity: {final_pred}")
     st.write(f"Confidence: {confidence}%")
