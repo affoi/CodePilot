@@ -107,7 +107,7 @@ def add_bg_from_local(image_file):
     )
 
 # Put your image file in same folder as app.py
-add_bg_from_local("D:/CodeComplexity/background.png")
+add_bg_from_local("background.png")
 
 # =========================================
 # HELPERS
