@@ -1,7 +1,9 @@
 # =========================================
 # FRONTEND CODE (app.py)
 # DEPLOYMENT READY FOR GCP
-# Uses joblib.load() instead of retraining
+# DARK BACKGROUND UI VERSION
+# Uses joblib.load()
+# Background Image + Better Text Visibility
 # =========================================
 
 import streamlit as st
@@ -10,7 +12,102 @@ import re
 import json
 import os
 import joblib
+import base64
 
+# =========================================
+# PAGE CONFIG
+# =========================================
+
+st.set_page_config(
+    page_title="CodePilot",
+    page_icon="💻",
+    layout="centered"
+)
+
+# =========================================
+# BACKGROUND IMAGE + UI STYLING
+# =========================================
+
+def add_bg_from_local(image_file):
+    with open(image_file, "rb") as image:
+        encoded = base64.b64encode(image.read()).decode()
+
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background-image: url("data:image/png;base64,{encoded}");
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }}
+
+        /* Main content box */
+        .main {{
+            background-color: rgba(0, 0, 0, 0.55);
+            border-radius: 15px;
+            padding: 20px;
+        }}
+
+        /* Title */
+        h1 {{
+            color: #FFFFFF !important;
+            font-weight: 700;
+        }}
+
+        /* Subheaders */
+        h2, h3 {{
+            color: #EAF6FF !important;
+        }}
+
+        /* Normal text */
+        p, label, div, span {{
+            color: #F5F5F5 !important;
+            font-size: 16px;
+        }}
+
+        /* Text area */
+        textarea {{
+            background-color: rgba(255,255,255,0.92) !important;
+            color: black !important;
+            border-radius: 10px !important;
+        }}
+
+        /* Number input */
+        input {{
+            background-color: rgba(255,255,255,0.92) !important;
+            color: black !important;
+            border-radius: 10px !important;
+        }}
+
+        /* Button */
+        .stButton > button {{
+            background-color: #00B4D8;
+            color: white;
+            border-radius: 10px;
+            border: none;
+            padding: 10px 24px;
+            font-weight: bold;
+        }}
+
+        .stButton > button:hover {{
+            background-color: #0096C7;
+            color: white;
+        }}
+
+        /* Success box */
+        .stSuccess {{
+            background-color: rgba(0, 255, 150, 0.15) !important;
+            color: white !important;
+            border-radius: 10px;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+# Put your image file in same folder as app.py
+add_bg_from_local("D:/CodeComplexity/bg.jpeg")
 
 # =========================================
 # HELPERS
@@ -210,7 +307,7 @@ def personalized_feedback(data):
 
 
 # =========================================
-# LOAD SAVED MODEL (FAST STARTUP)
+# LOAD SAVED MODEL
 # =========================================
 
 model = joblib.load("saved_model.pkl")
