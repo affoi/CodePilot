@@ -1,16 +1,11 @@
 # =========================================
-# FRONTEND CODE (app.py)
-# DEPLOYMENT READY FOR GCP
-# DARK BACKGROUND UI VERSION
-# Uses joblib.load()
-# Background Image + Better Text Visibility
+# FINAL APP.PY
+# COMPLETE VERSION
 # =========================================
 
 import streamlit as st
 import numpy as np
 import re
-import json
-import os
 import joblib
 import base64
 
@@ -25,118 +20,102 @@ st.set_page_config(
 )
 
 # =========================================
-# BACKGROUND IMAGE + UI STYLING
+# BACKGROUND
 # =========================================
 
 def add_bg_from_local(image_file):
+
     with open(image_file, "rb") as image:
-        encoded = base64.b64encode(image.read()).decode()
+
+        encoded = base64.b64encode(
+            image.read()
+        ).decode()
 
     st.markdown(
         f"""
         <style>
+
         .stApp {{
-            background-image: url("data:image/png;base64,{encoded}");
+            background-image: url(
+            "data:image/png;base64,{encoded}"
+            );
             background-size: cover;
             background-position: center;
-            background-attachment: fixed;
         }}
 
-        /* Main content box */
-        .main {{
-            background-color: rgba(0, 0, 0, 0.55);
-            border-radius: 15px;
-            padding: 20px;
+        .stTextArea textarea {{
+            background-color: white !important;
+            color: black !important;
         }}
 
-        /* Title */
+        .stTextInput input {{
+            background-color: white !important;
+            color: black !important;
+        }}
         h1 {{
-            color: #FFFFFF !important;
-            font-weight: 700;
-        }}
-
-        /* Subheaders */
-        h2, h3 {{
-            color: #EAF6FF !important;
-        }}
-
-        /* Normal text */
-        p, label, div, span {{
-            color: #F5F5F5 !important;
-            font-size: 16px;
-        }}
-
-        /* Text area */
-        textarea {{
-            background-color: rgba(255,255,255,0.92) !important;
-            color: black !important;
-            border-radius: 10px !important;
-        }}
-
-        /* Number input */
-        input {{
-            background-color: rgba(255,255,255,0.92) !important;
-            color: black !important;
-            border-radius: 10px !important;
-        }}
-
-        /* Button */
-        .stButton > button {{
-            background-color: #00B4D8;
-            color: white;
-            border-radius: 10px;
-            border: none;
-            padding: 10px 24px;
-            font-weight: bold;
-        }}
-
-        .stButton > button:hover {{
-            background-color: #0096C7;
-            color: white;
-        }}
-
-        /* Success box */
-        .stSuccess {{
-            background-color: rgba(0, 255, 150, 0.15) !important;
-            color: white !important;
-            border-radius: 10px;
+            color: #FFF8E7 !important;
         }}
         </style>
         """,
         unsafe_allow_html=True
     )
 
-# Put your image file in same folder as app.py
 add_bg_from_local("background.png")
 
 # =========================================
-# HELPERS
+# LOOP DEPTH DETECTION
 # =========================================
 
 def max_loop_depth(code):
-    lines = str(code).split("\n")
+
+    lines = str(code).splitlines()
+
     depth = 0
+
+    max_depth = 0
+
     stack = []
 
     for line in lines:
-        stripped = line.lstrip()
-        indent = len(line) - len(stripped)
 
-        if "for" in stripped or "while" in stripped:
-            while stack and stack[-1] >= indent:
-                stack.pop()
+        stripped = line.strip()
 
-            stack.append(indent)
-            depth = max(depth, len(stack))
+        # Detect loops
+        if re.match(
+            r'^(for|while)\s*\(',
+            stripped
+        ):
 
-    return depth
+            depth += 1
 
+            stack.append(depth)
+
+            max_depth = max(
+                max_depth,
+                depth
+            )
+
+        # Detect closing braces
+        if "}" in stripped and stack:
+
+            depth -= stripped.count("}")
+
+            if depth < 0:
+                depth = 0
+
+    return max_depth
+
+# =========================================
+# RECURSION DETECTION
+# =========================================
 
 def get_function_name_and_calls(code):
+
     code = str(code)
 
     match = re.search(
-        r'(?:public|private|protected)?\s*(?:static\s+)?'
+        r'(?:public|private|protected)?\s*'
+        r'(?:static\s+)?'
         r'(?:int|void|double|float|String|boolean)\s+'
         r'(\w+)\s*\(',
         code
@@ -148,24 +127,54 @@ def get_function_name_and_calls(code):
         return "", 0
 
     calls = len(
-        re.findall(r'\b' + re.escape(name) + r'\s*\(', code)
+        re.findall(
+            r'\b' + re.escape(name) + r'\s*\(',
+            code
+        )
     ) - 1
 
     return name, calls
 
+# =========================================
+# FEATURE EXTRACTION
+# =========================================
 
 def extract_features(code):
+
     code = str(code).lower()
 
-    loops = code.count("for") + code.count("while")
+    loops = (
+        code.count("for")
+        + code.count("while")
+    )
+
     depth = max_loop_depth(code)
 
-    has_sort = 1 if "sort(" in code else 0
-    has_divide = 1 if "mid" in code or "/ 2" in code else 0
+    has_sort = (
+        1 if re.search(
+            r'\barrays\.sort\s*\(|'
+            r'\bcollections\.sort\s*\(',
+            code
+        )
+        else 0
+    )
 
-    _, recursive_calls = get_function_name_and_calls(code)
+    has_divide = (
+        1 if (
+            "mid" in code
+            or "/ 2" in code
+            or ">>" in code
+        )
+        else 0
+    )
 
-    has_recursion = 1 if recursive_calls > 0 else 0
+    _, recursive_calls = (
+        get_function_name_and_calls(code)
+    )
+
+    has_recursion = (
+        1 if recursive_calls > 0 else 0
+    )
 
     return [
         loops,
@@ -176,165 +185,268 @@ def extract_features(code):
         recursive_calls
     ]
 
+# =========================================
+# CONSTRAINT PARSER
+# =========================================
+
+def parse_constraint(text):
+
+    text = str(text).lower()
+
+    text = text.replace(" ", "")
+
+    if "<=" in text:
+
+        expr = text.split("<=")[-1]
+
+    else:
+
+        expr = text
+
+    expr = expr.replace("^", "**")
+
+    allowed = "0123456789*+-/()"
+
+    for ch in expr:
+
+        if ch not in allowed:
+            raise ValueError
+
+    return int(eval(expr))
 
 # =========================================
-# RULE BASED PREDICTION
+# RULE ENGINE
 # =========================================
 
 def rule_based_prediction(code):
+
     code = str(code).lower()
+
     depth = max_loop_depth(code)
 
-    _, recursive_calls = get_function_name_and_calls(code)
+    _, recursive_calls = (
+        get_function_name_and_calls(code)
+    )
 
-    if "sort(" in code:
+    loop_patterns = re.findall(
+        r'for\s*\(.*?\)|while\s*\(.*?\)',
+        code,
+        re.DOTALL
+    )
+
+    loop_count = len(loop_patterns)
+
+    # O(n log n)
+    if re.search(
+        r'\barrays\.sort\s*\(|'
+        r'\bcollections\.sort\s*\(',
+        code
+    ):
+
         return "O(n log n)"
 
-    if "/ 2" in code or ">>" in code:
+    # O(log n)
+    if (
+        ("while" in code or "for" in code)
+        and (
+            "/ 2" in code
+            or "mid" in code
+            or ">>" in code
+        )
+    ):
+
         return "O(log n)"
 
+    # O(2^n)
     if recursive_calls >= 2:
+
         return "O(2^n)"
 
-    if recursive_calls == 1:
-        return "O(n)"
+    # O(n^3)
+    if depth >= 3 or loop_count >= 3:
 
-    if depth >= 3:
         return "O(n^3)"
 
-    if depth == 2:
+    # O(n^2)
+    if depth == 2 or loop_count == 2:
+
         return "O(n^2)"
 
-    if depth == 1:
+    # O(n)
+    if depth == 1 or loop_count == 1:
+
         return "O(n)"
 
+    # O(1)
     return "O(1)"
-
 
 # =========================================
 # TLE PREDICTION
 # =========================================
 
 def tle_prediction(complexity, n):
-    n = int(n)
 
     if complexity in ["O(1)", "O(log n)"]:
-        return "LOW", "Very safe"
+        return "LOW"
 
     if complexity == "O(n)":
-        return (
-            ("LOW", "Usually acceptable")
-            if n <= 10**7 else
-            ("MEDIUM", "Large input size")
-        )
+
+        if n <= 10**7:
+            return "LOW"
+
+        return "MEDIUM"
 
     if complexity == "O(n log n)":
-        return (
-            ("LOW", "Efficient")
-            if n <= 10**6 else
-            ("MEDIUM", "May be heavy")
-        )
+
+        if n <= 10**6:
+            return "LOW"
+
+        return "MEDIUM"
 
     if complexity == "O(n^2)":
-        return (
-            ("MEDIUM", "Borderline case")
-            if n <= 10**4 else
-            ("HIGH", "Likely TLE")
-        )
+
+        if n <= 10**4:
+            return "MEDIUM"
+
+        return "HIGH"
 
     if complexity in ["O(n^3)", "O(2^n)"]:
-        return "HIGH", "Very likely TLE"
+        return "HIGH"
 
-    return "UNKNOWN", "Unable to determine"
-
+    return "UNKNOWN"
 
 # =========================================
-# SUGGESTIONS
+# OPTIMIZATION SUGGESTIONS
 # =========================================
 
 def optimization_suggestions(complexity):
-    if complexity == "O(n^2)":
+
+    if complexity == "O(1)":
+
         return [
-            "Use HashMap",
-            "Try two-pointer or prefix sum"
+            "Excellent constant time solution",
+            "Highly optimized implementation",
+            "Very scalable for large inputs"
+        ]
+
+    if complexity == "O(log n)":
+
+        return [
+            "Excellent optimization",
+            "Binary-search style solution detected",
+            "Highly scalable approach",
+            "Ideal for very large constraints"
+        ]
+
+    if complexity == "O(n)":
+
+        return [
+            "Efficient linear solution",
+            "Good for large constraints",
+            "Consider hashing for faster lookup",
+            "Can be optimized further with preprocessing"
+        ]
+
+    if complexity == "O(n log n)":
+
+        return [
+            "Efficient divide-and-conquer solution",
+            "Good scalability",
+            "Suitable for competitive programming",
+            "Efficient sorting/searching approach"
+        ]
+
+    if complexity == "O(n^2)":
+
+        return [
+            "Use HashMap for constant time lookup",
+            "Try two-pointer approach",
+            "Use sliding window technique",
+            "Reduce nested loops",
+            "Consider binary search optimization",
+            "Use prefix sums if applicable"
         ]
 
     if complexity == "O(n^3)":
+
         return [
-            "Reduce nested loops",
-            "Use DP or preprocessing"
+            "Triple nested loops detected",
+            "Apply dynamic programming",
+            "Optimize matrix operations",
+            "Reduce redundant computations",
+            "Use preprocessing",
+            "Use memoization"
         ]
 
     if complexity == "O(2^n)":
+
         return [
+            "Exponential recursion detected",
             "Use memoization",
-            "Try dynamic programming"
+            "Apply dynamic programming",
+            "Avoid repeated recursive states",
+            "Convert recursion to iterative DP",
+            "Use pruning techniques"
         ]
 
-    return ["Current approach looks efficient"]
-
-
-# =========================================
-# USER HISTORY
-# =========================================
-
-def update_behavior(complexity):
-    file = "user_behavior.json"
-    data = {}
-
-    if os.path.exists(file):
-        with open(file, "r") as f:
-            data = json.load(f)
-
-    data[complexity] = data.get(complexity, 0) + 1
-
-    with open(file, "w") as f:
-        json.dump(data, f)
-
-    return data
-
-
-def personalized_feedback(data):
-    if not data:
-        return "No history yet"
-
-    common = max(data, key=data.get)
-
-    if common in ["O(n^2)", "O(n^3)"]:
-        return "You often use brute-force solutions. Try optimized approaches."
-
-    return "Good complexity patterns overall."
-
+    return [
+        "Complexity could not be fully analyzed"
+    ]
 
 # =========================================
-# LOAD SAVED MODEL
+# LOAD MODEL
 # =========================================
 
-model = joblib.load("saved_model.pkl")
-vectorizer = joblib.load("vectorizer.pkl")
-encoder = joblib.load("encoder.pkl")
+model = joblib.load(
+    "saved_model.pkl"
+)
 
+vectorizer = joblib.load(
+    "vectorizer.pkl"
+)
+
+encoder = joblib.load(
+    "encoder.pkl"
+)
 
 # =========================================
 # UI
 # =========================================
 
-st.title("CodePilot - Personalized Coding Assistant")
-st.write("Final Model Used: Random Forest Classifier")
+st.title(
+    "CodePilot - Complexity Analyzer"
+)
+
 
 code = st.text_area(
-    "Paste your code",
-    height=300
+    "Paste your Java code",
+    height=350
 )
 
-constraint = st.number_input(
-    "Enter constraint n",
-    min_value=1,
-    value=1000,
-    step=1
+constraint = st.text_input(
+    "Constraints",
+    value="1 <= n <= 10^5"
 )
+
+# =========================================
+# ANALYZE
+# =========================================
 
 if st.button("Analyze"):
+
+    try:
+
+        parsed_n = parse_constraint(
+            constraint
+        )
+
+    except:
+
+        st.error(
+            "Invalid constraint format"
+        )
+
+        st.stop()
 
     struct = np.array(
         extract_features(code)
@@ -344,43 +456,61 @@ if st.button("Analyze"):
         [code]
     ).toarray()
 
-    final = np.hstack((struct, text))
+    final = np.hstack((
+        struct,
+        text
+    ))
 
-    pred_encoded = model.predict(final)[0]
+    pred_encoded = model.predict(
+        final
+    )[0]
 
     pred = encoder.inverse_transform(
         [pred_encoded]
     )[0]
 
+    final_pred = (
+        rule_based_prediction(code)
+    )
+
     confidence = round(
-        np.max(model.predict_proba(final)[0]) * 100,
+        np.max(
+            model.predict_proba(final)[0]
+        ) * 100,
         2
     )
 
-    rule = rule_based_prediction(code)
-
-    final_pred = rule if rule != "O(1)" else pred
-
-    tle_risk, tle_reason = tle_prediction(
+    tle_risk = tle_prediction(
         final_pred,
-        constraint
+        parsed_n
     )
 
-    suggestions = optimization_suggestions(final_pred)
+    suggestions = optimization_suggestions(
+        final_pred
+    )
 
-    behavior = update_behavior(final_pred)
-    feedback = personalized_feedback(behavior)
+    st.success(
+        f"Complexity: {final_pred}"
+    )
 
-    st.success(f"Complexity: {final_pred}")
-    st.write(f"Confidence: {confidence}%")
+    st.write(
+        f"Confidence: {confidence}%"
+    )
 
-    st.subheader("TLE Prediction")
-    st.write(f"Risk: {tle_risk}")
-    st.write(tle_reason)
+    st.write(
+        f"Parsed Constraint: {parsed_n}"
+    )
 
-    st.subheader("Optimization Suggestions")
+    st.subheader(
+        "TLE Risk"
+    )
+
+    st.write(tle_risk)
+
+    st.subheader(
+        "Optimization Suggestions"
+    )
+
     for s in suggestions:
-        st.write(f"- {s}")
 
-    st.subheader("Personalized Feedback")
-    st.write(feedback)
+        st.write(f"- {s}")
