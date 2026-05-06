@@ -55,6 +55,17 @@ def add_bg_from_local(image_file):
         h1 {{
             color: #FFF8E7 !important;
         }}
+        h2, h3, p, li, div, span {{
+            color: white !important;
+        }}
+
+        .stMarkdown {{
+            color: white !important;
+        }}
+
+        .stText {{
+            color: white !important;
+        }}
         </style>
         """,
         unsafe_allow_html=True

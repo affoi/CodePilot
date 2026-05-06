@@ -1,0 +1,12 @@
+.git
+.gemini
+.vscode
+.cache
+.codeoss
+.config
+.docker
+.npm
+file1
+CodePilot
+__pycache__
+.streamlit
